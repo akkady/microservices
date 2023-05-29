@@ -1,16 +1,16 @@
 package me.akkad.customer.service;
 
+import me.akkad.clients.fraud.FraudCheckResponse;
+import me.akkad.clients.fraud.FraudClient;
 import me.akkad.customer.doa.Customer;
 import me.akkad.customer.dto.CustomerRegisterRequest;
-import me.akkad.customer.dto.FraudCheckResponse;
 import me.akkad.customer.repository.CustomerRepository;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestTemplate;
 
 @Service
-public record CustomerService (CustomerRepository customerRepository,
-                               RestTemplate restTemplate
-){
+public record CustomerService(CustomerRepository customerRepository,
+                              FraudClient fraudClient
+) {
     public void register(CustomerRegisterRequest registerRequest) {
         Customer customer = Customer.builder()
                 .firstname(registerRequest.firstname())
@@ -18,11 +18,7 @@ public record CustomerService (CustomerRepository customerRepository,
                 .email(registerRequest.email())
                 .build();
         customerRepository.saveAndFlush(customer);
-        FraudCheckResponse fraudCheckResponse = restTemplate.getForObject(
-                "http://FRAUD/api/v1/fraud-check/{customerId}",
-                FraudCheckResponse.class,
-                customer.getId()
-        );
+        FraudCheckResponse fraudCheckResponse = fraudClient.isFraudster(customer.getId());
 
         if (fraudCheckResponse.isFraudster()) {
             throw new IllegalStateException("fraudster");
