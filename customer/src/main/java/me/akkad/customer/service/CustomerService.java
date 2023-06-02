@@ -1,5 +1,6 @@
 package me.akkad.customer.service;
 
+import me.akkad.amqp.RabbitMQMessageProducer;
 import me.akkad.clients.fraud.FraudCheckResponse;
 import me.akkad.clients.fraud.FraudClient;
 import me.akkad.clients.notification.NotificationClient;
@@ -12,7 +13,8 @@ import org.springframework.stereotype.Service;
 @Service
 public record CustomerService(CustomerRepository customerRepository,
                               FraudClient fraudClient,
-                              NotificationClient notificationClient
+                              NotificationClient notificationClient,
+                              RabbitMQMessageProducer mqMessageProducer
 ) {
     public void register(CustomerRegisterRequest registerRequest) {
         Customer customer = Customer.builder()
@@ -26,14 +28,15 @@ public record CustomerService(CustomerRepository customerRepository,
         if (fraudCheckResponse.isFraudster()) {
             throw new IllegalStateException("fraudster");
         }
-
-        notificationClient.sendNotification(
-                new NotificationRequest(
-                        customer.getId(),
-                        customer.getEmail(),
-                        String.format("Hi %s, welcome to My world...",
-                                customer.getFirstname()
-                )
-        ));
+        NotificationRequest notificationRequest = new NotificationRequest(
+                customer.getId(),
+                customer.getEmail(),
+                String.format("Hi %s, welcome to My world...",
+                        customer.getFirstname()
+                ));
+        mqMessageProducer.publish(
+                notificationRequest,
+                "internal.exchange",
+                "internal.notification.routing-key");
     }
 }
